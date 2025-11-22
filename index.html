@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mao's Geek Space</title>
+    <!-- 引入 React 和 ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- 引入 Babel 用于解析 JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- 引入 Tailwind CSS 用于样式 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <!-- 配置 Tailwind 主题 -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        geek: {
+                            bg: '#0d1117',
+                            card: '#161b22',
+                            border: '#30363d',
+                            primary: '#2f81f7',
+                            text: '#c9d1d9',
+                            accent: '#238636'
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', "Liberation Mono", "Courier New", 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0d1117; color: #c9d1d9; }
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0d1117; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #2f81f7; }
+        .glass-panel {
+            background: rgba(22, 27, 34, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(48, 54, 61, 0.5);
+        }
+        .markdown-preview h1 { font-size: 1.8rem; font-weight: bold; color: #fff; margin-bottom: 0.5rem; border-bottom: 1px solid #30363d; padding-bottom: 0.3rem; }
+        .markdown-preview h2 { font-size: 1.5rem; font-weight: bold; color: #fff; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+        .markdown-preview h3 { font-size: 1.2rem; font-weight: bold; color: #2f81f7; margin-top: 1rem; }
+        .markdown-preview p { margin-bottom: 1rem; line-height: 1.6; }
+        .markdown-preview pre { background: #000; padding: 1rem; border-radius: 6px; overflow-x: auto; border: 1px solid #30363d; margin-bottom: 1rem; }
+        .markdown-preview code { font-family: monospace; color: #7ee787; }
+        .markdown-preview img { max-width: 100%; border-radius: 6px; margin: 1rem 0; }
+        .markdown-preview a { color: #58a6ff; text-decoration: underline; }
+        .markdown-preview blockquote { border-left: 4px solid #30363d; padding-left: 1rem; color: #8b949e; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // --- 1. Firebase 配置区域 (部署时请替换这里!) ---
+        // 在这里粘贴你从 Firebase 控制台获取的配置对象
+        const firebaseConfig = {
+  apiKey: "AIzaSyDyIS66FX4lqHtXfdz5Ll7qjRZGeQ1-gsk",
+  authDomain: "my-geek-blog.firebaseapp.com",
+  projectId: "my-geek-blog",
+  storageBucket: "my-geek-blog.firebasestorage.app",
+  messagingSenderId: "764142322348",
+  appId: "1:764142322348:web:98d4f0c56e723d80595509",
+  measurementId: "G-WTEGD0CLJ5"
+};
+
+        // 智能判断：如果是 AI 预览环境，使用内置配置；如果是用户部署，使用上面的配置
+        let firebaseConfig;
+        if (typeof __firebase_config !== 'undefined') {
+            firebaseConfig = JSON.parse(__firebase_config);
+        } else {
+            firebaseConfig = firebaseConfigDefault;
+        }
+
+        // 初始化 Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // --- React 组件 ---
+
+        const { useState, useEffect, useRef } = React;
+
+        // 图标组件
+        const Icon = ({ name }) => {
+            const icons = {
+                code: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>,
+                user: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>,
+                edit: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>,
+                logout: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            };
+            return icons[name] || null;
+        };
+
+        // 导航栏
+        const Navbar = ({ user, role, setPage }) => (
+            <nav className="fixed top-0 w-full glass-panel z-50 px-6 py-4 flex justify-between items-center">
+                <div className="text-xl font-mono font-bold text-geek-primary cursor-pointer flex items-center gap-2" onClick={() => setPage('home')}>
+                    <Icon name="code" /> <span>MAO_SPACE</span>
+                </div>
+                <div className="flex gap-4 text-sm font-mono">
+                    <button onClick={() => setPage('home')} className="hover:text-geek-primary transition">首页</button>
+                    
+                    {user ? (
+                        <>
+                            {role === 'admin' && (
+                                <button onClick={() => setPage('admin')} className="text-geek-accent hover:text-green-400 transition">控制台</button>
+                            )}
+                            <button onClick={() => auth.signOut()} className="text-red-400 hover:text-red-300 transition flex items-center gap-1">
+                                退出 <Icon name="logout"/>
+                            </button>
+                        </>
+                    ) : (
+                        <button onClick={() => setPage('login')} className="text-geek-primary hover:text-blue-400 transition">登录 / 注册</button>
+                    )}
+                </div>
+            </nav>
+        );
+
+        // 首页：个人介绍 + 项目
+        const Home = ({ introData, projectsData }) => {
+            const scrollToBlog = () => {
+                document.getElementById('blog-section').scrollIntoView({ behavior: 'smooth' });
+            };
+
+            return (
+                <div className="pt-20">
+                    {/* Hero Section */}
+                    <div className="min-h-[90vh] flex flex-col justify-center items-center text-center px-4">
+                        <div className="max-w-3xl animate-fade-in-up">
+                            <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-green-500 font-mono">
+                                {introData.title || "Hello, I'm Mao"}
+                            </h1>
+                            <p className="text-xl md:text-2xl text-gray-400 mb-8 font-mono">
+                                {introData.subtitle || "Full Stack Developer & Geek"}
+                            </p>
+                            <div className="glass-panel p-6 rounded-lg text-left mb-10 max-w-2xl mx-auto">
+                                <h3 className="text-geek-primary mb-2 font-mono border-b border-gray-700 pb-2">> CURRENTLY_WATCHING</h3>
+                                <ul className="space-y-2 font-mono text-sm">
+                                    {projectsData.map((p, idx) => (
+                                        <li key={idx} className="flex items-start gap-2">
+                                            <span className="text-geek-accent">[*]</span> 
+                                            <span className="text-white">{p.name}:</span>
+                                            <span className="text-gray-500">{p.desc}</span>
+                                        </li>
+                                    ))}
+                                    {projectsData.length === 0 && <li>暂无项目数据</li>}
+                                </ul>
+                            </div>
+                            <button onClick={scrollToBlog} className="animate-bounce mt-10 text-geek-text opacity-70 hover:opacity-100">
+                                ↓ 向下滚动查看博客 ↓
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Blog Section */}
+                    <div id="blog-section" className="min-h-screen py-20 px-4 max-w-4xl mx-auto">
+                        <div className="flex items-center gap-4 mb-10">
+                            <div className="h-[1px] bg-geek-border flex-1"></div>
+                            <h2 className="text-3xl font-mono font-bold text-geek-primary">LATEST_LOGS</h2>
+                            <div className="h-[1px] bg-geek-border flex-1"></div>
+                        </div>
+                        <BlogList />
+                    </div>
+                </div>
+            );
+        };
+
+        // 博客列表组件
+        const BlogList = () => {
+            const [posts, setPosts] = useState([]);
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                // 获取 appId 用于公共数据路径
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                
+                // RULE 1: 使用正确的路径 /artifacts/{appId}/public/data/posts
+                const unsubscribe = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('posts')
+                    .orderBy('createdAt', 'desc') // 注意：如果控制台报错索引问题，请先去掉 orderBy，或者按报错链接创建索引
+                    .onSnapshot(snapshot => {
+                        const p = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        setPosts(p);
+                        setLoading(false);
+                    }, error => {
+                        console.error("Error fetching posts:", error);
+                        // 尝试不带排序获取，防止索引错误
+                        db.collection('artifacts').doc(appId).collection('public').doc('data').collection('posts')
+                        .get().then(snap => {
+                             const p = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                             // 内存排序
+                             p.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                             setPosts(p);
+                             setLoading(false);
+                        });
+                    });
+                return () => unsubscribe();
+            }, []);
+
+            if (loading) return <div className="text-center font-mono animate-pulse">LOADING_DATA...</div>;
+
+            return (
+                <div className="space-y-8">
+                    {posts.map(post => (
+                        <article key={post.id} className="glass-panel p-6 rounded-xl hover:border-geek-primary transition duration-300 group">
+                            <div className="flex justify-between items-start mb-4">
+                                <h3 className="text-2xl font-bold text-white group-hover:text-geek-primary transition">{post.title}</h3>
+                                <span className="text-xs font-mono text-gray-500 border border-gray-700 px-2 py-1 rounded">
+                                    {new Date(post.createdAt).toLocaleDateString()}
+                                </span>
+                            </div>
+                            {/* 简单的 Markdown 渲染展示 */}
+                            <div className="markdown-preview text-gray-400" dangerouslySetInnerHTML={{__html: post.htmlContent}}></div>
+                        </article>
+                    ))}
+                    {posts.length === 0 && <div className="text-center text-gray-500 font-mono">博主很懒，还没有发布任何日志。</div>}
+                </div>
+            );
+        };
+
+        // 登录/注册组件
+        const AuthPage = ({ setPage }) => {
+            const [isRegister, setIsRegister] = useState(false);
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [username, setUsername] = useState('');
+            const [error, setError] = useState('');
+
+            const handleAuth = async (e) => {
+                e.preventDefault();
+                setError('');
+                try {
+                    let userCred;
+                    if (isRegister) {
+                        userCred = await auth.createUserWithEmailAndPassword(email, password);
+                        const user = userCred.user;
+                        // 保存用户信息
+                        // RULE 1 & 3: 必须登录后且路径正确
+                        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                        
+                        // 初始角色逻辑：如果是 mao，就是 admin，否则 user
+                        const role = username === 'mao' ? 'admin' : 'user';
+
+                        await db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('profile').doc('info').set({
+                            username,
+                            role,
+                            email
+                        });
+                    } else {
+                        await auth.signInWithEmailAndPassword(email, password);
+                    }
+                    setPage('home');
+                } catch (err) {
+                    setError(err.message);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center px-4">
+                    <div className="glass-panel p-8 rounded-xl w-full max-w-md">
+                        <h2 className="text-2xl font-mono font-bold mb-6 text-center text-geek-primary">
+                            {isRegister ? 'ACCESS_REQUEST' : 'SYSTEM_LOGIN'}
+                        </h2>
+                        {error && <div className="bg-red-900/30 border border-red-800 text-red-200 text-sm p-3 rounded mb-4">{error}</div>}
+                        <form onSubmit={handleAuth} className="space-y-4">
+                            {isRegister && (
+                                <div>
+                                    <label className="block text-xs font-mono text-gray-500 mb-1">CODENAME (USERNAME)</label>
+                                    <input type="text" value={username} onChange={e => setUsername(e.target.value)} required className="w-full bg-geek-bg border border-geek-border rounded p-2 focus:border-geek-primary focus:outline-none transition" placeholder="mao" />
+                                </div>
+                            )}
+                            <div>
+                                <label className="block text-xs font-mono text-gray-500 mb-1">EMAIL</label>
+                                <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="w-full bg-geek-bg border border-geek-border rounded p-2 focus:border-geek-primary focus:outline-none transition" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-mono text-gray-500 mb-1">PASSWORD</label>
+                                <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="w-full bg-geek-bg border border-geek-border rounded p-2 focus:border-geek-primary focus:outline-none transition" />
+                            </div>
+                            <button type="submit" className="w-full bg-geek-primary/20 border border-geek-primary text-geek-primary hover:bg-geek-primary hover:text-white py-2 rounded transition font-mono font-bold">
+                                {isRegister ? 'INITIATE_SEQUENCE' : 'CONNECT'}
+                            </button>
+                        </form>
+                        <div className="mt-4 text-center text-sm font-mono">
+                            <button onClick={() => setIsRegister(!isRegister)} className="text-gray-500 hover:text-gray-300 underline">
+                                {isRegister ? 'Existing user? Login' : 'New unit? Register'}
+                            </button>
+                        </div>
+                        {!isRegister && (
+                             <div className="mt-6 text-xs text-gray-600 font-mono text-center border-t border-gray-800 pt-2">
+                                <p>DEFAULT ADMIN: mao</p>
+                                <p>PASS: maocong123</p>
+                             </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // 简单的富文本编辑器/Markdown解析
+        const Editor = ({ value, onChange }) => {
+            const insertText = (tag) => {
+                const textarea = document.getElementById('editor-textarea');
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                const text = textarea.value;
+                const before = text.substring(0, start);
+                const after = text.substring(end, text.length);
+                let insertion = '';
+                
+                switch(tag) {
+                    case 'h1': insertion = `# `; break;
+                    case 'h2': insertion = `## `; break;
+                    case 'h3': insertion = `### `; break;
+                    case 'code': insertion = `\n\`\`\`javascript\n// Code here\n\`\`\`\n`; break;
+                    case 'link': insertion = `[Link Text](url)`; break;
+                    case 'image': insertion = `![Image Alt](image_url)`; break;
+                    default: break;
+                }
+                
+                const newValue = before + insertion + after;
+                onChange(newValue);
+                // 简单处理：焦点会丢失，生产环境需优化
+            };
+
+            return (
+                <div className="border border-geek-border rounded-lg overflow-hidden">
+                    <div className="bg-geek-card border-b border-geek-border p-2 flex gap-2 flex-wrap">
+                        <button type="button" onClick={() => insertText('h1')} className="px-2 py-1 bg-geek-bg text-xs font-mono border border-gray-700 rounded hover:border-geek-primary">H1</button>
+                        <button type="button" onClick={() => insertText('h2')} className="px-2 py-1 bg-geek-bg text-xs font-mono border border-gray-700 rounded hover:border-geek-primary">H2</button>
+                        <button type="button" onClick={() => insertText('code')} className="px-2 py-1 bg-geek-bg text-xs font-mono border border-gray-700 rounded text-geek-accent hover:border-geek-accent">{'</>'}</button>
+                        <button type="button" onClick={() => insertText('link')} className="px-2 py-1 bg-geek-bg text-xs font-mono border border-gray-700 rounded hover:border-geek-primary">Link</button>
+                        <button type="button" onClick={() => insertText('image')} className="px-2 py-1 bg-geek-bg text-xs font-mono border border-gray-700 rounded hover:border-geek-primary">Img</button>
+                    </div>
+                    <textarea 
+                        id="editor-textarea"
+                        value={value} 
+                        onChange={(e) => onChange(e.target.value)} 
+                        className="w-full h-64 bg-geek-bg p-4 font-mono text-sm focus:outline-none resize-y"
+                        placeholder="Start typing using Markdown..."
+                    ></textarea>
+                </div>
+            );
+        };
+
+        // 将 Markdown 转换为 HTML (极简版，实际使用建议用 marked.js)
+        const parseMarkdown = (text) => {
+            let html = text
+                .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+                .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+                .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+                .replace(/\*\*(.*)\*\*/gim, '<b>$1</b>')
+                .replace(/\n```(.*)\n([\s\S]*?)\n```/gim, '<pre><code class="language-$1">$2</code></pre>')
+                .replace(/`([^`]+)`/gim, '<code>$1</code>')
+                .replace(/!\[(.*?)\]\((.*?)\)/gim, "<img alt='$1' src='$2' />")
+                .replace(/\[(.*?)\]\((.*?)\)/gim, "<a href='$2' target='_blank'>$1</a>")
+                .replace(/\n/gim, '<br />');
+            return html;
+        };
+
+        // 管理后台
+        const AdminPanel = ({ user }) => {
+            const [activeTab, setActiveTab] = useState('blog'); // blog, intro, users
+            const [title, setTitle] = useState('');
+            const [content, setContent] = useState('');
+            const [usersList, setUsersList] = useState([]);
+            const [introTitle, setIntroTitle] = useState('');
+            const [introSubtitle, setIntroSubtitle] = useState('');
+            const [projectInput, setProjectInput] = useState(''); // Name|Desc
+            const [projects, setProjects] = useState([]);
+
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+            // 发布博客
+            const handlePost = async (e) => {
+                e.preventDefault();
+                const htmlContent = parseMarkdown(content);
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('posts').add({
+                    title,
+                    content, // 保存原始内容用于编辑(本demo未实现编辑回显)
+                    htmlContent, // 保存HTML用于展示
+                    author: user.email,
+                    createdAt: Date.now()
+                });
+                alert('DEPLOYED SUCCESSFUL');
+                setTitle('');
+                setContent('');
+            };
+
+            // 获取用户列表
+            useEffect(() => {
+                if(activeTab === 'users') {
+                    // 注意：在实际生产环境，获取所有用户需要特殊权限或结构设计
+                    // 这里演示，我们假设所有用户资料都在 artifacts/{appId}/users/{uid}/profile/info 下
+                    // 但由于 Firestore 是层级结构，无法直接遍历所有子集合。
+                    // 为了简化Demo，我们不遍历真实用户，而是显示当前用户权限。
+                    // 在真实应用中，你应该创建一个独立的 'users_public' 集合来索引所有用户。
+                }
+                if (activeTab === 'intro') {
+                    // Load current intro
+                     db.collection('artifacts').doc(appId).collection('public').doc('data').collection('config').doc('intro').get().then(doc => {
+                         if (doc.exists) {
+                             const d = doc.data();
+                             setIntroTitle(d.title);
+                             setIntroSubtitle(d.subtitle);
+                             setProjects(d.projects || []);
+                         }
+                     });
+                }
+            }, [activeTab]);
+
+            const saveIntro = async () => {
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('config').doc('intro').set({
+                    title: introTitle,
+                    subtitle: introSubtitle,
+                    projects: projects
+                });
+                alert('CONFIG UPDATED');
+            };
+
+            const addProject = () => {
+                const [name, desc] = projectInput.split('|');
+                if (name && desc) {
+                    setProjects([...projects, { name, desc }]);
+                    setProjectInput('');
+                } else {
+                    alert('Format: ProjectName|Description');
+                }
+            };
+
+            return (
+                <div className="pt-24 px-4 max-w-5xl mx-auto min-h-screen">
+                    <h1 className="text-3xl font-mono font-bold mb-8 text-geek-accent">ADMIN_CONSOLE</h1>
+                    
+                    <div className="flex gap-4 mb-8 border-b border-gray-700 pb-4">
+                        <button onClick={() => setActiveTab('blog')} className={`font-mono ${activeTab === 'blog' ? 'text-white font-bold' : 'text-gray-500'}`}>POST_LOG</button>
+                        <button onClick={() => setActiveTab('intro')} className={`font-mono ${activeTab === 'intro' ? 'text-white font-bold' : 'text-gray-500'}`}>EDIT_INTRO</button>
+                        <button onClick={() => setActiveTab('users')} className={`font-mono ${activeTab === 'users' ? 'text-white font-bold' : 'text-gray-500'}`}>USER_RIGHTS</button>
+                    </div>
+
+                    {activeTab === 'blog' && (
+                        <form onSubmit={handlePost} className="space-y-6">
+                            <input 
+                                type="text" 
+                                placeholder="Log Title" 
+                                value={title} 
+                                onChange={e => setTitle(e.target.value)}
+                                className="w-full bg-geek-bg border border-geek-border rounded p-3 text-xl font-bold focus:border-geek-primary focus:outline-none"
+                                required
+                            />
+                            <Editor value={content} onChange={setContent} />
+                            
+                            <div className="glass-panel p-4 mt-4">
+                                <p className="text-xs text-gray-500 mb-2">PREVIEW:</p>
+                                <div className="markdown-preview" dangerouslySetInnerHTML={{__html: parseMarkdown(content)}}></div>
+                            </div>
+
+                            <button type="submit" className="px-6 py-2 bg-geek-primary text-white font-mono rounded hover:bg-blue-600">DEPLOY LOG</button>
+                        </form>
+                    )}
+
+                    {activeTab === 'intro' && (
+                        <div className="space-y-6 max-w-2xl">
+                            <div>
+                                <label className="block text-xs font-mono text-gray-500 mb-1">MAIN TITLE</label>
+                                <input value={introTitle} onChange={e => setIntroTitle(e.target.value)} className="w-full bg-geek-bg border border-geek-border rounded p-2" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-mono text-gray-500 mb-1">SUBTITLE</label>
+                                <input value={introSubtitle} onChange={e => setIntroSubtitle(e.target.value)} className="w-full bg-geek-bg border border-geek-border rounded p-2" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-mono text-gray-500 mb-1">ADD PROJECT (Name|Description)</label>
+                                <div className="flex gap-2">
+                                    <input value={projectInput} onChange={e => setProjectInput(e.target.value)} className="flex-1 bg-geek-bg border border-geek-border rounded p-2" placeholder="React|Building a website" />
+                                    <button onClick={addProject} className="bg-geek-border px-4 rounded">+</button>
+                                </div>
+                            </div>
+                            <ul className="space-y-2">
+                                {projects.map((p, i) => (
+                                    <li key={i} className="flex justify-between bg-geek-card p-2 rounded">
+                                        <span>{p.name} - {p.desc}</span>
+                                        <button onClick={() => setProjects(projects.filter((_, idx) => idx !== i))} className="text-red-400">x</button>
+                                    </li>
+                                ))}
+                            </ul>
+                            <button onClick={saveIntro} className="px-6 py-2 bg-geek-accent text-white font-mono rounded hover:bg-green-600">SAVE CONFIG</button>
+                        </div>
+                    )}
+
+                    {activeTab === 'users' && (
+                        <div className="glass-panel p-6 text-center">
+                            <p className="mb-4">CURRENT ADMIN: {user.email}</p>
+                            <p className="text-yellow-500 text-sm">NOTE: User Management list requires a dedicated 'users' collection in Firestore strategy.</p>
+                            <p className="text-sm text-gray-400 mt-2">Currently, only user 'mao' is granted Admin rights by code logic.</p>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // 主应用组件
+        const App = () => {
+            const [user, setUser] = useState(null);
+            const [role, setRole] = useState(null);
+            const [page, setPage] = useState('home'); // home, login, admin
+            const [introData, setIntroData] = useState({ title: '', subtitle: '' });
+            const [projectsData, setProjectsData] = useState([]);
+
+            useEffect(() => {
+                // Auth 监听
+                const unsubscribeAuth = auth.onAuthStateChanged(async (u) => {
+                    setUser(u);
+                    if (u) {
+                         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                         const doc = await db.collection('artifacts').doc(appId).collection('users').doc(u.uid).collection('profile').doc('info').get();
+                         if (doc.exists) {
+                             setRole(doc.data().role);
+                         } else {
+                             // Fallback for newly registered users if db write is slow
+                             setRole('user');
+                         }
+                    } else {
+                        setRole(null);
+                    }
+                });
+                
+                // Intro Data 监听
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const unsubscribeIntro = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('config').doc('intro')
+                    .onSnapshot(doc => {
+                        if (doc.exists) {
+                            const data = doc.data();
+                            setIntroData({ title: data.title, subtitle: data.subtitle });
+                            setProjectsData(data.projects || []);
+                        }
+                    });
+
+                return () => { unsubscribeAuth(); unsubscribeIntro(); };
+            }, []);
+
+            return (
+                <div className="min-h-screen bg-geek-bg text-geek-text pb-10">
+                    <Navbar user={user} role={role} setPage={setPage} />
+                    
+                    {page === 'home' && <Home introData={introData} projectsData={projectsData} />}
+                    {page === 'login' && <AuthPage setPage={setPage} />}
+                    {page === 'admin' && (
+                        role === 'admin' ? <AdminPanel user={user} /> : <div className="pt-32 text-center text-red-500">ACCESS DENIED: ADMIN CLEARANCE REQUIRED</div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
